@@ -51,15 +51,16 @@ namespace HospitalReservation
         {
             string query = @"
                 SELECT 
-                    SCHEDULE_ID,
+                    WORK_SCHED_ID,
                     DOCTOR_ID,
                     WORK_DATE,
-                    STATUS,
-                    SHIFT
+                    WORK_STATUS,
+                    WORK_TIME
                 FROM WORK_SCHEDULE
                 WHERE TRUNC(WORK_DATE) = :wdate
-                ORDER BY DOCTOR_ID, WORK_DATE, SCHEDULE_ID
+                ORDER BY DOCTOR_ID, WORK_DATE, WORK_SCHED_ID
             ";
+            
 
             using (var da = new OracleDataAdapter(query, connectionString))
             {
@@ -95,8 +96,8 @@ namespace HospitalReservation
             if (drv == null) return;
 
             // PK
-            if (drv["SCHEDULE_ID"] != DBNull.Value)
-                currentScheduleId = Convert.ToInt32(drv["SCHEDULE_ID"]);
+            if (drv["WORK_SCHED_ID"] != DBNull.Value)
+                currentScheduleId = Convert.ToInt32(drv["WORK_SCHED_ID"]);
             else
                 currentScheduleId = null;
 
@@ -112,14 +113,14 @@ namespace HospitalReservation
                 txtDoctorId.Text = drv["DOCTOR_ID"].ToString();
 
             // 근무 상태
-            string status = drv["STATUS"] == DBNull.Value ? null : drv["STATUS"].ToString();
+            string status = drv["WORK_STATUS"] == DBNull.Value ? null : drv["WORK_STATUS"].ToString();
             if (!string.IsNullOrEmpty(status))
                 cmbStatus.SelectedItem = status;
             else
                 cmbStatus.SelectedIndex = -1;
 
             // 근무 시간대
-            string shift = drv["SHIFT"] == DBNull.Value ? null : drv["SHIFT"].ToString();
+            string shift = drv["WORK_TIME"] == DBNull.Value ? null : drv["WORK_TIME"].ToString();
             if (string.IsNullOrEmpty(shift))
             {
                 cmbShift.SelectedIndex = -1;
@@ -233,16 +234,16 @@ namespace HospitalReservation
 
                     // 새 PK 생성
                     int newId;
-                    using (var cmdId = new OracleCommand("SELECT NVL(MAX(SCHEDULE_ID),0)+1 FROM WORK_SCHEDULE", conn))
+                    using (var cmdId = new OracleCommand("SELECT NVL(MAX(WORK_SCHED_ID),0)+1 FROM WORK_SCHEDULE", conn))
                     {
                         newId = Convert.ToInt32(cmdId.ExecuteScalar());
                     }
 
                     string insertSql = @"
                         INSERT INTO WORK_SCHEDULE
-                            (SCHEDULE_ID, DOCTOR_ID, WORK_DATE, STATUS, SHIFT)
+                            (WORK_SCHED_ID, DOCTOR_ID, WORK_DATE, WORK_STATUS, WORK_TIME)
                         VALUES
-                            (:sid, :did, :wdate, :status, :shift)
+                            (:sid, :did, :wdate, :status, :workTime)
                     ";
 
                     using (var cmdInsert = new OracleCommand(insertSql, conn))
@@ -251,8 +252,7 @@ namespace HospitalReservation
                         cmdInsert.Parameters.Add(":did", targetDoctorId);
                         cmdInsert.Parameters.Add(":wdate", workDate);
                         cmdInsert.Parameters.Add(":status", status);
-                        cmdInsert.Parameters.Add(":shift", (object)shift ?? DBNull.Value);
-
+                        cmdInsert.Parameters.Add(":workTime", (object)shift ?? DBNull.Value); // shift 변수 = 근무시간대
                         cmdInsert.ExecuteNonQuery();
                     }
                 }
@@ -316,11 +316,11 @@ namespace HospitalReservation
 
                     string updateSql = @"
                         UPDATE WORK_SCHEDULE
-                        SET DOCTOR_ID = :did,
-                            WORK_DATE = :wdate,
-                            STATUS    = :status,
-                            SHIFT     = :shift
-                        WHERE SCHEDULE_ID = :sid
+                        SET DOCTOR_ID   = :did,
+                            WORK_DATE   = :wdate,
+                            WORK_STATUS = :status,
+                            WORK_TIME   = :workTime
+                        WHERE WORK_SCHED_ID = :sid
                     ";
 
                     using (var cmd = new OracleCommand(updateSql, conn))
@@ -328,9 +328,9 @@ namespace HospitalReservation
                         cmd.Parameters.Add(":did", targetDoctorId);
                         cmd.Parameters.Add(":wdate", workDate);
                         cmd.Parameters.Add(":status", status);
-                        cmd.Parameters.Add(":shift", (object)shift ?? DBNull.Value);
+                        cmd.Parameters.Add(":workTime", (object)shift ?? DBNull.Value);
                         cmd.Parameters.Add(":sid", currentScheduleId.Value);
-
+                        
                         int rows = cmd.ExecuteNonQuery();
                         if (rows > 0)
                             MessageBox.Show("스케줄이 수정되었습니다.");
@@ -374,7 +374,7 @@ namespace HospitalReservation
                 {
                     conn.Open();
 
-                    string sql = "DELETE FROM WORK_SCHEDULE WHERE SCHEDULE_ID = :sid";
+                    string sql = "DELETE FROM WORK_SCHEDULE WHERE WORK_SCHED_ID = :sid";
 
                     using (var cmd = new OracleCommand(sql, conn))
                     {
